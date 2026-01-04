@@ -1,0 +1,51 @@
+nohup: ignorando entrada
+=CRASH REPORT==== 4-Jan-2026::19:10:28.692652 ===
+  crasher:
+    initial call: prim_tty:reader/1
+    pid: <0.69.0>
+    registered_name: user_drv_reader
+    exception error: no case clause matching {error,{read,ebadf}}
+      in function  prim_tty:reader_loop/6 (prim_tty.erl, line 531)
+    ancestors: [user_drv,<0.65.0>,kernel_sup,<0.47.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.66.0>]
+    dictionary: []
+    trap_exit: false
+    status: running
+    heap_size: 233
+    stack_size: 29
+    reductions: 49
+  neighbours:
+
+=ERROR REPORT==== 4-Jan-2026::19:10:28.716258 ===
+Reader crashed ({{case_clause,{error,{read,ebadf}}},
+                 [{prim_tty,reader_loop,6,[{file,"prim_tty.erl"},{line,531}]},
+                  {proc_lib,init_p_do_apply,3,
+                            [{file,"proc_lib.erl"},{line,329}]}]})
+Failed to write log message to stdout, trying stderr
+=CRASH REPORT==== 4-Jan-2026::19:10:28.692652 ===
+  crasher:
+    initial call: prim_tty:reader/1
+    pid: <0.69.0>
+    registered_name: user_drv_reader
+    exception error: no case clause matching {error,{read,ebadf}}
+      in function  prim_tty:reader_loop/6 (prim_tty.erl, line 531)
+    ancestors: [user_drv,<0.65.0>,kernel_sup,<0.47.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.66.0>]
+    dictionary: []
+    trap_exit: false
+    status: running
+    heap_size: 233
+    stack_size: 29
+    reductions: 49
+  neighbours:
+
+Failed to write log message to stdout, trying stderr
+=ERROR REPORT==== 4-Jan-2026::19:10:28.716258 ===
+Reader crashed ({{case_clause,{error,{read,ebadf}}},
+                 [{prim_tty,reader_loop,6,[{file,"prim_tty.erl"},{line,531}]},
+                  {proc_lib,init_p_do_apply,3,
+                            [{file,"proc_lib.erl"},{line,329}]}]})
