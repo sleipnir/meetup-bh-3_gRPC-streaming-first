@@ -6,6 +6,7 @@ defmodule DeliverySystem.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      DeliverySystem.OrderStore,
       GRPC.Client.Supervisor,
       DeliverySystem.Producers.SystemMessageProducer,
       DeliverySystem.Producers.AvailableOrdersProducer,

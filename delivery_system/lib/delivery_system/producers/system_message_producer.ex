@@ -1,4 +1,4 @@
-defmodule SystemMessageProducer do
+defmodule DeliverySystem.Producers.SystemMessageProducer do
   @moduledoc """
   Single global GenStage producer for proactive chat messages.
   Responds to GenStage.call calls and emits proactive messages via events.
@@ -32,7 +32,8 @@ defmodule SystemMessageProducer do
     # Send proactive messages
     messages = [
       {:system_message, order_id, "🔔 Atualização: Seu pedido está sendo preparado!"},
-      {:system_message, order_id, "✅ Pedido pronto para envio!"}
+      {:system_message, order_id,
+       "🔔 Atualização: Enquanto aguarda o que acha de dar uma nova olhada em nosso cardápio?"}
     ]
 
     {:noreply, messages, state}

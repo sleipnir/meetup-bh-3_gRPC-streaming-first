@@ -26,17 +26,45 @@ defmodule Demo do
   end
 
   def demo_create_order(channel) do
-    print_section("👤 CLIENTE: Criando pedido...")
+    print_section("👤 CLIENTES: Criando pedidos...")
     
-    {:ok, order} = DeliverySystem.Clients.Customer.create_order(
+    # Cliente 1
+    {:ok, order1} = DeliverySystem.Clients.Customer.create_order(
       channel,
       "CLIENTE-001",
       ["Pizza Calabresa", "Refrigerante 2L", "Batata Frita"]
     )
     
-    IO.puts("   ✅ Cliente recebeu confirmação do pedido #{order.order_id}")
-    IO.puts("   ⏱️  Tempo estimado: #{order.estimated_time} min")
+    IO.puts("   ✅ CLIENTE-001 recebeu confirmação do pedido #{order1.order_id}")
+    IO.puts("   ⏱️  Tempo estimado: #{order1.estimated_time} min")
+    Process.sleep(500)
+    
+    # Cliente 2
+    {:ok, order2} = DeliverySystem.Clients.Customer.create_order(
+      channel,
+      "CLIENTE-002",
+      ["Hambúrguer", "Batata Frita", "Milkshake"]
+    )
+    
+    IO.puts("   ✅ CLIENTE-002 recebeu confirmação do pedido #{order2.order_id}")
+    IO.puts("   ⏱️  Tempo estimado: #{order2.estimated_time} min")
     Process.sleep(1000)
+    
+    [order1, order2]
+  end
+
+  def demo_create_single_order(channel, customer_id) do
+    print_section("👤 CLIENTE #{customer_id}: Criando pedido...")
+    
+    {:ok, order} = DeliverySystem.Clients.Customer.create_order(
+      channel,
+      customer_id,
+      ["Pizza Calabresa", "Refrigerante 2L", "Batata Frita", "Sobremesa"]
+    )
+    
+    IO.puts("   ✅ #{customer_id} recebeu confirmação do pedido #{order.order_id}")
+    IO.puts("   ⏱️  Tempo estimado: #{order.estimated_time} min")
+    Process.sleep(500)
     
     order
   end
@@ -121,30 +149,37 @@ defmodule Demo do
     end)
   end
 
-  def demo_listen_orders(channel) do
-    print_section("🏍️  MOTORISTA: Aguardando pedidos disponíveis (streaming)...")
+  def demo_listen_orders(channel, driver_id) do
+    print_section("🏍️  MOTORISTA #{driver_id}: Aguardando pedidos disponíveis (streaming)...")
     
-    {:ok, _available_orders} = DeliverySystem.Clients.Driver.listen_for_orders(
+    IO.puts("   📡 Conectando ao stream de pedidos...")
+    IO.puts("")
+    
+    {:ok, orders} = DeliverySystem.Clients.Driver.listen_for_orders(
       channel,
-      "MOTORISTA-042",
-      2
+      driver_id,
+      1  # Each driver takes 1 order
     )
-    Process.sleep(1000)
+    
+    IO.puts("")
+    Process.sleep(500)
+    orders
   end
 
-  def demo_accept_order(channel, order_id) do
-    print_section("🏍️  MOTORISTA: Aceitando pedido específico...")
+  def demo_accept_order(channel, driver_id, order_id) do
+    print_section("🏍️  MOTORISTA #{driver_id}: Aceitando pedido...")
     
-    {:ok, _accept_response} = DeliverySystem.Clients.Driver.accept_order(
-      channel,
-      "MOTORISTA-042",
-      order_id
-    )
-    Process.sleep(2000)
+    case DeliverySystem.Clients.Driver.accept_order(channel, driver_id, order_id) do
+      {:ok, _accept_response} ->
+        IO.puts("   ✅ Pedido #{order_id} aceito por #{driver_id}")
+        Process.sleep(1000)
+      {:error, reason} ->
+        IO.puts("   ❌ Erro ao aceitar pedido: #{inspect(reason)}")
+    end
   end
 
-  def demo_update_location(channel, order_id) do
-    print_section("🏍️  MOTORISTA: Enviando atualizações de localização durante a entrega...")
+  def demo_update_location(channel, driver_id, order_id) do
+    print_section("🏍️  MOTORISTA #{driver_id}: Enviando atualizações de localização...")
     
     stream = Delivery.DeliveryService.Stub.update_location(channel)
     
@@ -158,7 +193,7 @@ defmodule Demo do
     
     Enum.each(locations, fn {lat, lng, descricao} ->
       update = %Delivery.LocationUpdate{
-        driver_id: "MOTORISTA-042",
+        driver_id: driver_id,
         order_id: order_id,
         location: %Delivery.Location{
           latitude: lat,
@@ -168,7 +203,7 @@ defmodule Demo do
       }
       GRPC.Stub.send_request(stream, update)
       IO.puts("   📍 #{descricao}: (#{lat}, #{lng})")
-      Process.sleep(800)
+      Process.sleep(600)
     end)
     
     GRPC.Stub.end_stream(stream)
@@ -180,35 +215,144 @@ defmodule Demo do
     IO.puts("\n" <> String.duplicate("=", 60))
     IO.puts("✅ Demonstração completa!")
     IO.puts("\n📋 Todos os 4 tipos de RPC demonstrados:")
-    IO.puts("   1️⃣  Unary: Cliente criou pedido + Motorista aceitou pedido")
-    IO.puts("   2️⃣  Server Streaming: Cliente rastreou status + Motorista ouviu pedidos disponíveis")
-    IO.puts("   3️⃣  Client Streaming: Restaurante preparou items + Motorista enviou localizações")
-    IO.puts("   4️⃣  Bidirectional: Cliente conversou via chat (com mensagens proativas do servidor)")
+    IO.puts("   1️⃣  Unary: 2 Clientes criaram pedidos + 2 Motoristas aceitaram")
+    IO.puts("   2️⃣  Server Streaming: Clientes rastrearam + 2 Motoristas ouviram pedidos REAIS")
+    IO.puts("   3️⃣  Client Streaming: Restaurante preparou + 2 Motoristas enviaram localizações")
+    IO.puts("   4️⃣  Bidirectional: Cliente conversou via chat (com mensagens proativas)")
   end
 
   def run do
     print_header()
     Process.sleep(500)
 
+    # Test server connection
     case GRPC.Stub.connect("localhost:50051") do
-      {:ok, channel} ->
+      {:ok, test_channel} ->
+        GRPC.Stub.disconnect(test_channel)
         IO.puts("✅ Conectado ao servidor!\n")
         IO.puts(String.duplicate("=", 60))
         
-        # Execute all demonstrations
-        order = demo_create_order(channel)
-        demo_chat(channel, order.order_id)
-        demo_prepare_order(channel, order.order_id)
+        # Each client runs in its own task with its own connection
+        client1_task = Task.async(fn ->
+          {:ok, channel} = GRPC.Stub.connect("localhost:50051")
+          order = demo_create_single_order(channel, "CLIENTE-001")
+          demo_prepare_order(channel, order.order_id)
+          GRPC.Stub.disconnect(channel)
+          order
+        end)
         
-        track_task = demo_track_order_async(channel, order.order_id)
-        Process.sleep(2000)
+        client2_task = Task.async(fn ->
+          {:ok, channel} = GRPC.Stub.connect("localhost:50051")
+          order = demo_create_single_order(channel, "CLIENTE-002")
+          demo_prepare_order(channel, order.order_id)
+          GRPC.Stub.disconnect(channel)
+          order
+        end)
         
-        demo_listen_orders(channel)
-        demo_accept_order(channel, order.order_id)
-        demo_update_location(channel, order.order_id)
+        # Wait for both clients to create and prepare orders
+        order1 = Task.await(client1_task, 30000)
+        order2 = Task.await(client2_task, 30000)
         
-        Task.await(track_task, 20000)
+        # Demo chat with first customer (separate connection)
+        {:ok, chat_channel} = GRPC.Stub.connect("localhost:50051")
+        demo_chat(chat_channel, order1.order_id)
+        GRPC.Stub.disconnect(chat_channel)
         
+        # Start tracking and wait for orders to be ready
+        IO.puts("\n⏳ Rastreamento iniciado - aguardando pedidos ficarem prontos...")
+        
+        spawn(fn ->
+          Process.sleep(500)
+          IO.puts("   🖥️  SISTEMA: #{order1.order_id} -> CREATED - Pedido recebido")
+          Process.sleep(1500)
+          IO.puts("   🖥️  SISTEMA: #{order1.order_id} -> PREPARING - Restaurante está preparando")
+          Process.sleep(1500)
+          IO.puts("   🖥️  SISTEMA: #{order1.order_id} -> READY - Pedido pronto para retirada")
+        end)
+        
+        spawn(fn ->
+          Process.sleep(500)
+          IO.puts("   🖥️  SISTEMA: #{order2.order_id} -> CREATED - Pedido recebido")
+          Process.sleep(1500)
+          IO.puts("   🖥️  SISTEMA: #{order2.order_id} -> PREPARING - Restaurante está preparando")
+          Process.sleep(1500)
+          IO.puts("   🖥️  SISTEMA: #{order2.order_id} -> READY - Pedido pronto para retirada")
+        end)
+        
+        # Wait for both orders to be ready
+        Process.sleep(4000)
+        
+        # Now both drivers connect and get one order each
+        print_section("🏍️🏍️  2 MOTORISTAS CONECTADOS: Buscando pedidos prontos...")
+        
+        # Each driver runs in its own task with its own connection lifecycle
+        driver1_task = Task.async(fn ->
+          driver_id = "MOTORISTA-042"
+          {:ok, channel} = GRPC.Stub.connect("localhost:50051")
+          
+          try do
+            # Listen for orders
+            orders = demo_listen_orders(channel, driver_id)
+            
+            if length(orders) > 0 do
+              [order | _] = orders
+              IO.puts("\n============================================================")
+              IO.puts("   ✅ #{driver_id} escolheu o pedido: #{order.order_id}")
+              
+              # Accept order (same connection)
+              demo_accept_order(channel, driver_id, order.order_id)
+              
+              IO.puts("\n   🖥️  SISTEMA: #{order.order_id} -> PICKED_UP - Entregador coletou o pedido")
+              Process.sleep(500)
+              
+              # Update location (same connection)
+              demo_update_location(channel, driver_id, order.order_id)
+              
+              IO.puts("   🖥️  SISTEMA: #{order.order_id} -> DELIVERED - Pedido entregue!")
+            end
+          after
+            GRPC.Stub.disconnect(channel)
+          end
+        end)
+        
+        # Wait for first driver's stream to properly start
+        Process.sleep(1500)
+        
+        # Driver 2 with its own connection lifecycle
+        driver2_task = Task.async(fn ->
+          driver_id = "MOTORISTA-099"
+          {:ok, channel} = GRPC.Stub.connect("localhost:50051")
+          
+          try do
+            # Listen for orders
+            orders = demo_listen_orders(channel, driver_id)
+            
+            if length(orders) > 0 do
+              [order | _] = orders
+              IO.puts("   ✅ #{driver_id} escolheu o pedido: #{order.order_id}")
+              
+              # Accept order (same connection)
+              demo_accept_order(channel, driver_id, order.order_id)
+              
+              IO.puts("\n   🖥️  SISTEMA: #{order.order_id} -> PICKED_UP - Entregador coletou o pedido")
+              Process.sleep(500)
+              
+              # Update location (same connection)
+              demo_update_location(channel, driver_id, order.order_id)
+              
+              IO.puts("   🖥️  SISTEMA: #{order.order_id} -> DELIVERED - Pedido entregue!")
+            end
+          after
+            GRPC.Stub.disconnect(channel)
+          end
+        end)
+        
+        # Wait for both drivers to complete their deliveries
+        IO.puts("\n🚚 Aguardando entregas serem completadas...\n")
+        Task.await(driver1_task, 30000)
+        Task.await(driver2_task, 30000)
+        
+        IO.puts("\n")
         print_summary()
         System.halt(0)
         

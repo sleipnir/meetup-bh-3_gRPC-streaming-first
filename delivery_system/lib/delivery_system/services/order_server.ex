@@ -1,6 +1,75 @@
 defmodule DeliverySystem.Services.OrderServer do
   @moduledoc """
-  Order server implementation with examples of all streaming types.
+  OrderService implementation demonstrating all 4 gRPC streaming types.
+
+  This service handles the complete order lifecycle from the customer's perspective,
+  showcasing different streaming patterns available in gRPC:
+
+  ## Service Overview
+
+  The OrderService is the main interface for customers to:
+  - Create new orders (Unary RPC)
+  - Track order status in real-time (Server Streaming)
+  - Have restaurants prepare multiple items (Client Streaming)
+  - Engage in bidirectional chat with the system (Bidirectional Streaming)
+
+  ## Expected Interaction Flow
+
+  1. **Create Order** (`create_order/2`) - Unary RPC
+     - Customer sends a single order request with items
+     - Server generates order_id and returns confirmation
+     - Simple request-response pattern
+
+  2. **Order Chat** (`order_chat/2`) - Bidirectional Streaming
+     - Customer can send multiple messages about their order
+     - System responds to each message automatically
+     - System can also send proactive updates (using GenStage producer with `join_with`)
+     - Demonstrates true bidirectional communication
+
+  3. **Prepare Order** (`prepare_order/2`) - Client Streaming
+     - Restaurant sends multiple items as they are being prepared
+     - Each item is logged and processed
+     - Server returns a final preparation summary when stream ends
+     - Demonstrates aggregating multiple client messages
+
+  4. **Track Order** (`track_order/2`) - Server Streaming
+     - Customer requests to track a specific order
+     - Server sends multiple status updates over time
+     - Updates include: created → preparing → ready → picked_up → on_the_way → delivered
+     - Demonstrates server pushing multiple responses for a single request
+
+  ## Technical Implementation
+
+  - Uses `GRPC.Stream` API for all operations
+  - Server Streaming: Built with `Stream.iterate` and controlled delays
+  - Client Streaming: Uses `GRPC.Stream.from/2` with `Flow.from_enumerable/1` for backpressure
+  - Bidirectional Streaming: Combines `join_with: SystemMessageProducer` to merge client messages with proactive system messages
+  - All operations are logged with indicators for visual feedback
+
+  ## Example Usage
+
+      # Connect to the service
+      {:ok, channel} = GRPC.Stub.connect("localhost:50051")
+
+      # 1. Create order (Unary)
+      request = %OrderRequest{customer_id: "C001", items: ["Pizza"]}
+      {:ok, response} = Delivery.OrderService.Stub.create_order(channel, request)
+
+      # 2. Track order (Server Streaming)
+      track_req = %TrackRequest{order_id: response.order_id}
+      {:ok, stream} = Delivery.OrderService.Stub.track_order(channel, track_req)
+      Enum.each(stream, fn {:ok, status} -> IO.inspect(status) end)
+
+      # 3. Prepare order (Client Streaming)
+      stream = Delivery.OrderService.Stub.prepare_order(channel)
+      GRPC.Stub.send_request(stream, %OrderItem{order_id: "123", item_name: "Pizza"})
+      GRPC.Stub.end_stream(stream)
+      {:ok, summary} = GRPC.Stub.recv(stream)
+
+      # 4. Chat (Bidirectional)
+      chat_stream = Delivery.OrderService.Stub.order_chat(channel)
+      GRPC.Stub.send_request(chat_stream, %ChatMessage{order_id: "123", message: "Hello"})
+      {:ok, responses} = GRPC.Stub.recv(chat_stream)
   """
   use GRPC.Server, service: Delivery.OrderService.Service
   require Logger
@@ -19,13 +88,18 @@ defmodule DeliverySystem.Services.OrderServer do
   """
   def create_order(request, materializer) do
     GRPC.Stream.unary(request, materializer: materializer)
-    |> GRPC.Stream.map(fn %OrderRequest{} = req ->
-      order_id = generate_order_id()
+    |> GRPC.Stream.map(fn %OrderRequest{} = req -> {generate_order_id(), req} end)
+    |> GRPC.Stream.effect(fn {order_id, %OrderRequest{} = req} ->
       Logger.info("👤 CLIENTE #{req.customer_id}: Criou pedido #{order_id}")
 
-      # Save order to state
-      save_order(order_id, req)
-
+      # Save order to persistent store
+      DeliverySystem.OrderStore.save_order(order_id, %{
+        customer_id: req.customer_id,
+        items: req.items,
+        status: :created
+      })
+    end)
+    |> GRPC.Stream.map(fn {order_id, %OrderRequest{} = _req} ->
       %OrderResponse{
         order_id: order_id,
         status: "created",
@@ -53,6 +127,9 @@ defmodule DeliverySystem.Services.OrderServer do
       if index > 0, do: Process.sleep(2000)
 
       status = Enum.at(statuses, index)
+
+      # Update order status in persistent store
+      DeliverySystem.OrderStore.update_status(order_id, status)
 
       status_update = %OrderStatus{
         order_id: order_id,
@@ -92,6 +169,11 @@ defmodule DeliverySystem.Services.OrderServer do
           }
         end
       )
+
+    # Update order status to ready
+    if result.order_id && result.order_id != "unknown" do
+      DeliverySystem.OrderStore.update_status(result.order_id, :ready)
+    end
 
     # Return response directly
     %PreparationSummary{
@@ -144,11 +226,6 @@ defmodule DeliverySystem.Services.OrderServer do
 
   defp generate_order_id do
     "ORD-#{:rand.uniform(999_999)}"
-  end
-
-  defp save_order(order_id, _request) do
-    # Here you would save to database/ETS
-    Logger.debug("Pedido #{order_id} salvo")
   end
 
   defp status_message(:created), do: "Pedido recebido"
