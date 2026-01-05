@@ -86,7 +86,6 @@ defmodule Demo do
     receive_chat_responses(chat_stream)
     
     IO.puts("   ✅ Chat encerrado!")
-    Process.sleep(1000)
   end
 
   defp send_chat_messages(stream, order_id, messages) do
@@ -98,7 +97,7 @@ defmodule Demo do
         timestamp: System.system_time(:second)
       }
       
-      Process.sleep(300)
+      Process.sleep(100)
       IO.puts("   📤 [cliente]: #{text}")
       GRPC.Stub.send_request(stream, msg)
     end)
@@ -109,7 +108,6 @@ defmodule Demo do
     
     Enum.each(responses, fn
       {:ok, msg} ->
-        Process.sleep(150)
         icon = if String.contains?(msg.message, ["🔔", "✅"]), do: " 🎯", else: ""
         IO.puts("   📩 [#{msg.sender}]#{icon}: #{msg.message}")
       _ -> 

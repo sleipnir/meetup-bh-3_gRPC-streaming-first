@@ -118,8 +118,6 @@ defmodule DeliverySystem.OrderStore do
     :ok
   end
 
-  # Server Callbacks
-
   @impl true
   def init(:ok) do
     :ets.new(@table_name, [:named_table, :set, :public, read_concurrency: true])

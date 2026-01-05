@@ -23,7 +23,7 @@ defmodule DeliverySystem.Producers.SystemMessageProducer do
     response = resposta_automatica(msg.message)
 
     # Schedule proactive messages
-    Process.send_after(self(), {:proactive, msg.order_id}, 800)
+    Process.send_after(self(), {:proactive, msg.order_id}, 100)
 
     {:reply, response, [], state}
   end
