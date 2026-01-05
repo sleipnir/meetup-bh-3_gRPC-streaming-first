@@ -45,41 +45,50 @@ case GRPC.Stub.connect("localhost:50051") do
     Process.sleep(1000)
     
     # Demonstração 2: Bidirectional Streaming - Chat entre cliente e sistema
-    IO.puts("\n💬 CHAT: Cliente pergunta sobre o pedido...")
+    IO.puts("\n💬 CHAT: Diálogo entre cliente e sistema...")
     IO.puts(String.duplicate("-", 60))
     
     chat_stream = Delivery.OrderService.Stub.order_chat(channel)
     
-    # Enviar mensagens do cliente perguntando sobre o pedido
-    messages = [
+    # Mensagens para criar um diálogo natural
+    conversations = [
       "Olá, onde está meu pedido?",
       "Quanto tempo ainda falta?",
       "Ok, obrigado!"
     ]
     
-    Enum.each(messages, fn text ->
+    # Enviar todas as mensagens com pequenos delays para simular digitação
+    Enum.each(conversations, fn text ->
       msg = %Delivery.ChatMessage{
         order_id: order.order_id,
         sender: "cliente",
         message: text,
         timestamp: System.system_time(:second)
       }
-      GRPC.Stub.send_request(chat_stream, msg)
+      
+      # Delay antes de mostrar a mensagem (simula tempo de digitação)
+      Process.sleep(300)
       IO.puts("   📤 [cliente]: #{text}")
+      GRPC.Stub.send_request(chat_stream, msg)
     end)
     
     # Finalizar envio
     GRPC.Stub.end_stream(chat_stream)
     
-    # Receber respostas do servidor (uma para cada mensagem enviada)
+    # Receber e mostrar respostas conforme chegam (incluindo mensagens proativas)
     {:ok, responses} = GRPC.Stub.recv(chat_stream)
     
     responses
-    |> Enum.take(3)
     |> Enum.each(fn
       {:ok, msg} ->
-        IO.puts("   📩 [#{msg.sender}]: #{msg.message}")
-      _ ->
+        # Pequeno delay antes de mostrar resposta (simula tempo de processamento)
+        Process.sleep(150)
+        if String.contains?(msg.message, ["🔔", "✅"]) do
+          IO.puts("   📩 [#{msg.sender}] 🎯: #{msg.message}")
+        else
+          IO.puts("   📩 [#{msg.sender}]: #{msg.message}")
+        end
+      _ -> 
         :ok
     end)
     

@@ -8,6 +8,8 @@ defmodule DeliverySystem.Application do
     children = [
       # Inicia o supervisor de clientes gRPC
       GRPC.Client.Supervisor,
+      # Producer único global para mensagens proativas do chat
+      DeliverySystem.SystemMessageProducer,
       # Inicia o supervisor do gRPC Server
       {GRPC.Server.Supervisor, endpoint: DeliverySystem.Endpoint, port: 50051, start_server: true}
     ]

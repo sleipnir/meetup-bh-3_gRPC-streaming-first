@@ -15,6 +15,8 @@ defmodule DeliverySystem.Services.OrderServer do
     ChatMessage
   }
 
+  alias DeliverySystem.SystemMessageProducer
+
   @doc """
   Unary RPC: Cliente faz um pedido único
   """
@@ -93,7 +95,7 @@ defmodule DeliverySystem.Services.OrderServer do
           }
         end
       )
-    
+
     # Retorna a resposta diretamente
     %PreparationSummary{
       order_id: result.order_id || "unknown",
@@ -104,35 +106,43 @@ defmodule DeliverySystem.Services.OrderServer do
 
   @doc """
   Bidirectional Streaming: Chat entre cliente e sistema
-  Demonstra fluxo bidirecional onde ambos podem enviar mensagens a qualquer momento
+  Demonstra fluxo bidirecional unbounded com GenStage producer único.
+  join_with junta stream do cliente com mensagens proativas do producer.
   """
   def order_chat(messages_stream, materializer) do
-    GRPC.Stream.from(messages_stream)
-    |> GRPC.Stream.map(fn %ChatMessage{} = msg ->
-      Logger.info("Chat [#{msg.sender}]: #{msg.message}")
+    messages_stream
+    |> GRPC.Stream.from(join_with: SystemMessageProducer, max_demand: 5)
+    |> GRPC.Stream.effect(fn msg ->
+      case msg do
+        %ChatMessage{order_id: order_id, sender: sender, message: text} ->
+          Logger.info("Chat [#{sender}] (#{order_id}): #{text}")
 
-      # Responde automaticamente
-      %ChatMessage{
-        order_id: msg.order_id,
-        sender: "sistema",
-        message: resposta_automatica(msg.message),
-        timestamp: System.system_time(:second)
-      }
+        {:system_message, order_id, text} ->
+          Logger.info("Chat [sistema] (#{order_id}): #{text} (proativo)")
+      end
+    end)
+    |> GRPC.Stream.map(fn
+      # Mensagem do cliente - chama producer e retorna resposta
+      %ChatMessage{} = msg ->
+        response = GenStage.call(SystemMessageProducer, {:client_message, msg})
+
+        %ChatMessage{
+          order_id: msg.order_id,
+          sender: "sistema",
+          message: response,
+          timestamp: System.system_time(:second)
+        }
+
+      # Mensagem proativa do producer (via join_with) - só converte
+      {:system_message, order_id, text} ->
+        %ChatMessage{
+          order_id: order_id,
+          sender: "sistema",
+          message: text,
+          timestamp: System.system_time(:second)
+        }
     end)
     |> GRPC.Stream.run_with(materializer)
-  end
-  
-  defp resposta_automatica(message) do
-    cond do
-      String.contains?(String.downcase(message), "onde") ->
-        "Seu pedido está a caminho!"
-      String.contains?(String.downcase(message), "quanto tempo") ->
-        "Estimativa de 15 minutos"
-      String.contains?(String.downcase(message), "obrigado") ->
-        "De nada! Bom apetite!"
-      true ->
-        "Recebemos sua mensagem!"
-    end
   end
 
   defp generate_order_id do
