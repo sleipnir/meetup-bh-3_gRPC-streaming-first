@@ -6,11 +6,9 @@ defmodule DeliverySystem.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Inicia o supervisor de clientes gRPC
       GRPC.Client.Supervisor,
-      # Producer único global para mensagens proativas do chat
-      DeliverySystem.SystemMessageProducer,
-      # Inicia o supervisor do gRPC Server
+      DeliverySystem.Producers.SystemMessageProducer,
+      DeliverySystem.Producers.AvailableOrdersProducer,
       {GRPC.Server.Supervisor, endpoint: DeliverySystem.Endpoint, port: 50051, start_server: true}
     ]
 

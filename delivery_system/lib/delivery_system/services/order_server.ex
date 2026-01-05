@@ -1,24 +1,21 @@
 defmodule DeliverySystem.Services.OrderServer do
   @moduledoc """
-  Implementação do servidor de pedidos com exemplos de todos os tipos de streaming.
+  Order server implementation with examples of all streaming types.
   """
   use GRPC.Server, service: Delivery.OrderService.Service
   require Logger
 
-  alias Delivery.{
-    OrderRequest,
-    OrderResponse,
-    TrackRequest,
-    OrderStatus,
-    OrderItem,
-    PreparationSummary,
-    ChatMessage
-  }
-
-  alias DeliverySystem.SystemMessageProducer
+  alias Delivery.ChatMessage
+  alias Delivery.OrderRequest
+  alias Delivery.OrderResponse
+  alias Delivery.TrackRequest
+  alias Delivery.OrderStatus
+  alias Delivery.OrderItem
+  alias Delivery.PreparationSummary
+  alias DeliverySystem.Producers.SystemMessageProducer
 
   @doc """
-  Unary RPC: Cliente faz um pedido único
+  Unary RPC: Client creates a single order
   """
   def create_order(request, materializer) do
     GRPC.Stream.unary(request, materializer: materializer)
@@ -26,7 +23,7 @@ defmodule DeliverySystem.Services.OrderServer do
       order_id = generate_order_id()
       Logger.info("👤 CLIENTE #{req.customer_id}: Criou pedido #{order_id}")
 
-      # Salva o pedido no estado
+      # Save order to state
       save_order(order_id, req)
 
       %OrderResponse{
@@ -39,20 +36,20 @@ defmodule DeliverySystem.Services.OrderServer do
   end
 
   @doc """
-  Server Streaming: Cliente acompanha status do pedido em tempo real
-  Demonstra como o servidor pode enviar múltiplas atualizações
+  Server Streaming: Client tracks order status in real time
+  Demonstrates how the server can send multiple updates
   """
   def track_order(%TrackRequest{order_id: order_id}, materializer) do
     Logger.info("👤 CLIENTE: Iniciou rastreamento do pedido #{order_id}")
 
-    # Stream com delays entre cada atualização de status
-    # Usamos Stream.iterate + Stream.take para criar um stream finito
+    # Stream with delays between each status update
+    # We use Stream.iterate + Stream.take to create a finite stream
     statuses = [:created, :preparing, :ready, :picked_up, :on_the_way, :delivered]
 
     Stream.iterate(0, &(&1 + 1))
     |> Stream.take(length(statuses))
     |> Stream.map(fn index ->
-      # Delay de 2 segundos entre cada status (exceto o primeiro)
+      # 2 second delay between each status (except the first)
       if index > 0, do: Process.sleep(2000)
 
       status = Enum.at(statuses, index)
@@ -75,8 +72,8 @@ defmodule DeliverySystem.Services.OrderServer do
   end
 
   @doc """
-  Client Streaming: Restaurante envia items do pedido um por um
-  Demonstra como processar um stream de mensagens do cliente
+  Client Streaming: Restaurant sends order items one by one
+  Demonstrates how to process a stream of messages from the client
   """
   def prepare_order(items_stream, _materializer) do
     result =
@@ -96,7 +93,7 @@ defmodule DeliverySystem.Services.OrderServer do
         end
       )
 
-    # Retorna a resposta diretamente
+    # Return response directly
     %PreparationSummary{
       order_id: result.order_id || "unknown",
       total_items: result.count,
@@ -105,9 +102,9 @@ defmodule DeliverySystem.Services.OrderServer do
   end
 
   @doc """
-  Bidirectional Streaming: Chat entre cliente e sistema
-  Demonstra fluxo bidirecional unbounded com GenStage producer único.
-  join_with junta stream do cliente com mensagens proativas do producer.
+  Bidirectional Streaming: Chat between client and system
+  Demonstrates unbounded bidirectional flow with a single GenStage producer.
+  join_with merges the client stream with proactive messages from the producer.
   """
   def order_chat(messages_stream, materializer) do
     messages_stream
@@ -122,7 +119,7 @@ defmodule DeliverySystem.Services.OrderServer do
       end
     end)
     |> GRPC.Stream.map(fn
-      # Mensagem do cliente - chama producer e retorna resposta
+      # Client message - call producer and return response
       %ChatMessage{} = msg ->
         response = GenStage.call(SystemMessageProducer, {:client_message, msg})
 
@@ -133,7 +130,7 @@ defmodule DeliverySystem.Services.OrderServer do
           timestamp: System.system_time(:second)
         }
 
-      # Mensagem proativa do producer (via join_with) - só converte
+      # Proactive message from producer (via join_with) - just convert
       {:system_message, order_id, text} ->
         %ChatMessage{
           order_id: order_id,
@@ -150,7 +147,7 @@ defmodule DeliverySystem.Services.OrderServer do
   end
 
   defp save_order(order_id, _request) do
-    # Aqui você salvaria no banco/ETS
+    # Here you would save to database/ETS
     Logger.debug("Pedido #{order_id} salvo")
   end
 

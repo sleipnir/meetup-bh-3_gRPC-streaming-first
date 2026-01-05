@@ -1,17 +1,15 @@
 defmodule DeliverySystem.Clients.Customer do
   @moduledoc """
-  Cliente para simular um cliente fazendo pedidos.
+  Client to simulate a customer placing orders.
   """
   require Logger
 
-  alias Delivery.{
-    OrderRequest,
-    TrackRequest,
-    ChatMessage
-  }
+  alias Delivery.OrderRequest
+  alias Delivery.TrackRequest
+  alias Delivery.ChatMessage
 
   @doc """
-  Exemplo de Unary RPC: Cliente faz um pedido
+  Unary RPC example: Client places an order
   """
   def create_order(channel, customer_id, items) do
     request = %OrderRequest{
@@ -35,7 +33,7 @@ defmodule DeliverySystem.Clients.Customer do
   end
 
   @doc """
-  Exemplo de Server Streaming: Cliente rastreia pedido em tempo real
+  Server Streaming example: Client tracks order in real time
   """
   def track_order(channel, order_id) do
     request = %TrackRequest{order_id: order_id}
@@ -55,12 +53,12 @@ defmodule DeliverySystem.Clients.Customer do
   end
 
   @doc """
-  Exemplo de Bidirectional Streaming: Chat com entregador
+  Bidirectional Streaming example: Chat with delivery driver
   """
   def start_chat(channel, order_id) do
     Logger.info("💬 Iniciando chat para pedido #{order_id}")
 
-    # Stream de mensagens do cliente
+    # Stream of messages from client
     messages =
       Stream.unfold(1, fn count ->
         if count > 3 do

@@ -1,20 +1,18 @@
 defmodule DeliverySystem.Clients.Driver do
   @moduledoc """
-  Cliente para simular um motorista de entrega.
+  Client to simulate a delivery driver.
   """
   require Logger
 
-  alias Delivery.{
-    DriverRequest,
-    Location,
-    AcceptRequest,
-    LocationUpdate
-  }
+  alias Delivery.DriverRequest
+  alias Delivery.Location
+  alias Delivery.AcceptRequest
+  alias Delivery.LocationUpdate
 
   @doc """
-  Exemplo de Server Streaming: Motorista recebe pedidos disponíveis
+  Server Streaming example: Driver receives available orders
   """
-  def listen_for_orders(channel, driver_id, max_orders \\ 3) do
+  def listen_for_orders(channel, driver_id, max_orders \\ 2) do
     request = %DriverRequest{
       driver_id: driver_id,
       current_location: %Location{
@@ -23,25 +21,33 @@ defmodule DeliverySystem.Clients.Driver do
       }
     }
 
-    Logger.info("🚗 Motorista #{driver_id} aguardando pedidos...")
-
     {:ok, stream} = Delivery.DeliveryService.Stub.stream_available_orders(channel, request)
 
-    stream
-    |> Stream.take(max_orders)
-    |> Enum.each(fn order ->
-      Logger.info("📦 Novo pedido disponível!")
-      Logger.info("   ID: #{order.order_id}")
-      Logger.info("   Restaurante: #{order.restaurant_name}")
-      Logger.info("   Distância: #{order.distance_km}km")
-      Logger.info("   Pagamento: R$ #{order.estimated_payment}")
-    end)
+    orders =
+      stream
+      |> Stream.take(max_orders)
+      |> Enum.map(fn
+        {:ok, order} ->
+          IO.puts("   📦 Pedido disponível: #{order.order_id}")
+          IO.puts("      🍴 #{order.restaurant_name}")
 
-    Logger.info("✅ Stream de pedidos finalizado")
+          IO.puts(
+            "      📏 #{order.distance_km}km - R$ #{Float.round(order.estimated_payment, 2)}"
+          )
+
+          order
+
+        _ ->
+          nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    IO.puts("   ✅ #{length(orders)} pedido(s) recebido(s)")
+    {:ok, orders}
   end
 
   @doc """
-  Exemplo de Unary RPC: Motorista aceita um pedido
+  Unary RPC example: Driver accepts an order
   """
   def accept_order(channel, driver_id, order_id) do
     request = %AcceptRequest{
@@ -67,46 +73,46 @@ defmodule DeliverySystem.Clients.Driver do
   end
 
   @doc """
-  Exemplo de Client Streaming: Motorista envia atualizações de localização
+  Client Streaming example: Driver sends location updates
   """
   def send_location_updates(channel, driver_id, order_id, num_updates \\ 5) do
-    Logger.info("📍 Motorista #{driver_id} enviando atualizações de localização...")
+    # Predefined realistic locations for São Paulo delivery route
+    route = [
+      {-23.5505, -46.6333, "Saindo do restaurante"},
+      {-23.5515, -46.6343, "Avenida Paulista"},
+      {-23.5525, -46.6353, "Próximo ao destino"},
+      {-23.5535, -46.6363, "Entrando na rua"},
+      {-23.5545, -46.6373, "Chegou ao destino"}
+    ]
 
-    # Stream de atualizações de localização
+    # Create enumerable of location updates
     updates =
-      Stream.unfold({-19.9191, -43.9387, 1}, fn {lat, lng, count} ->
-        if count > num_updates do
-          nil
-        else
-          Process.sleep(1000)
+      route
+      |> Enum.take(num_updates)
+      |> Enum.with_index(1)
+      |> Enum.map(fn {{lat, lng, description}, count} ->
+        if count > 1, do: Process.sleep(800)
 
-          # Simula movimento
-          new_lat = lat + (:rand.uniform(100) - 50) / 10000.0
-          new_lng = lng + (:rand.uniform(100) - 50) / 10000.0
+        update = %LocationUpdate{
+          driver_id: driver_id,
+          order_id: order_id,
+          location: %Location{
+            latitude: lat,
+            longitude: lng
+          },
+          timestamp: System.system_time(:second)
+        }
 
-          update = %LocationUpdate{
-            driver_id: driver_id,
-            order_id: order_id,
-            location: %Location{
-              latitude: new_lat,
-              longitude: new_lng
-            },
-            timestamp: System.system_time(:second)
-          }
+        IO.puts("   📍 #{description}: (#{lat}, #{lng})")
 
-          Logger.info(
-            "📍 Atualização #{count}: #{Float.round(new_lat, 4)}, #{Float.round(new_lng, 4)}"
-          )
-
-          {update, {new_lat, new_lng, count + 1}}
-        end
+        update
       end)
 
     {:ok, summary} = Delivery.DeliveryService.Stub.update_location(channel, updates)
 
-    Logger.info("✅ Resumo das atualizações:")
-    Logger.info("   Total de atualizações: #{summary.updates_received}")
-    Logger.info("   Distância percorrida: #{summary.total_distance_km}km")
+    IO.puts(
+      "   ✅ Entrega concluída! Distância total: #{Float.round(summary.total_distance_km, 2)} km"
+    )
 
     {:ok, summary}
   end

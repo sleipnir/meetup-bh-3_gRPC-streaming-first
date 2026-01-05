@@ -1,7 +1,7 @@
-defmodule DeliverySystem.SystemMessageProducer do
+defmodule SystemMessageProducer do
   @moduledoc """
-  GenStage producer único global para mensagens proativas do chat.
-  Responde a chamadas GenStage.call e emite mensagens proativas via eventos.
+  Single global GenStage producer for proactive chat messages.
+  Responds to GenStage.call calls and emits proactive messages via events.
   """
   use GenStage
   require Logger
@@ -19,17 +19,17 @@ defmodule DeliverySystem.SystemMessageProducer do
   end
 
   def handle_call({:client_message, msg}, _from, state) do
-    # Responde à mensagem do cliente
+    # Respond to client message
     response = resposta_automatica(msg.message)
 
-    # Agenda mensagens proativas
-    Process.send_after(self(), {:proactive, msg.order_id}, 2000)
+    # Schedule proactive messages
+    Process.send_after(self(), {:proactive, msg.order_id}, 800)
 
     {:reply, response, [], state}
   end
 
   def handle_info({:proactive, order_id}, state) do
-    # Envia mensagens proativas
+    # Send proactive messages
     messages = [
       {:system_message, order_id, "🔔 Atualização: Seu pedido está sendo preparado!"},
       {:system_message, order_id, "✅ Pedido pronto para envio!"}
