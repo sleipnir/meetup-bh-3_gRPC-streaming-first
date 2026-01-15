@@ -809,13 +809,11 @@ end
 
 **Versão atual (0.11.x):**
 - API streaming-first estável
-- Suporte completo a Flow
-- Backpressure nativo
-- Integração com GenStage
 
 **Futuro:**
 - Mais operadores convenientes
 - Otimizações de performance
+- v1.0.x -> Novo server adapter baseado no thousand_island (4x mais performance)
 
 ---
 
