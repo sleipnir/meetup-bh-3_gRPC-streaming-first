@@ -71,11 +71,15 @@ style: |
 
 ---
 
-# elixir-grpc em poucas palavras
+# gRPC
 
-### 🎯 Implementação nativa de gRPC em Elixir
+---
 
-**Fundação:**
+* gRPC é um framework de RPC, criado pelo Google, que usa HTTP/2 e Protobuf para comunicação eficiente, tipada e multiplataforma entre serviços.
+* Liberado como projeto open source em fevereiro de 2015.
+* Antes de ser aberto ao público, o gRPC já existia internamente no Google como uma evolução do Stubby, a infraestrutura RPC usada pelos serviços da empresa.
+
+**Características:**
 - HTTP/2 (multiplexing, compressão)
 - Protocol Buffers (serialização tipada)
 - TLS e autenticação
@@ -83,7 +87,7 @@ style: |
 **Quatro tipos de RPC:**
 `Unary` · `Server Stream` · `Client Stream` · `Bidirectional`
 
-**Características:** Idiomático · Escalável · Fault-tolerant
+**Características:** Idiomático · Escalável · Orientado a Contratos
 
 ---
 
@@ -96,7 +100,58 @@ style: |
 | **Client Streaming** | Cliente envia stream   | Cliente ⇉ Servidor → Cliente |
 | **Bidirectional**    | Ambos streamam         | Cliente ⇄ Servidor           |
 
-**Modelo único no elixir-grpc**
+---
+
+# Definição de contratos gRPC
+
+```protobuf
+syntax = "proto3";
+package delivery;
+
+message OrderRequest {
+  string customer_id = 1;
+  string restaurant_id = 2;
+  repeated string items = 3;
+}
+
+message OrderResponse {
+  string order_id = 1;
+  string status = 2;
+}
+
+// Serviço de Pedidos
+service OrderService {
+  // Unary: Cliente faz um pedido
+  rpc CreateOrder(OrderRequest) returns (OrderResponse);
+
+  // Server Streaming: Cliente acompanha status do pedido em tempo real
+  rpc TrackOrder(TrackRequest) returns (stream OrderStatus);
+
+  // Client Streaming: Restaurante envia items do pedido um por um
+  rpc PrepareOrder(stream OrderItem) returns (PreparationSummary);
+
+  // Bidirectional: Chat entre cliente e entregador
+  rpc OrderChat(stream ChatMessage) returns (stream ChatMessage);
+}
+
+```
+
+---
+
+# Elixir gRPC
+
+---
+
+* Primeiro commit público em 32 de Julho de 2016 por Tony Han (tony612)
+* Longo **hiatus** sem grandes atualizações e/ou correções
+* **Paulo Valente** assume a manutenção do projeto
+* Eu entro um tempo depois
+
+Hoje os principais mantenedores são:
+  - **Paulo Valente**
+  - **Adriano Santos** ***(Eu)***
+  - **Dave Lucia**
+  - **Bing Han**
 
 ---
 
