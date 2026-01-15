@@ -36,6 +36,7 @@ style: |
 
 ### Adriano Santos
 **Elixir BH Meetup · Janeiro 2026**
+https://github.com/sleipnir/meetup-bh-3_gRPC-streaming-first
 
 ---
 
