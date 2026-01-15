@@ -142,10 +142,10 @@ service OrderService {
 
 ---
 
-* Primeiro commit público em 32 de Julho de 2016 por Tony Han (tony612)
-* Longo **hiatus** sem grandes atualizações e/ou correções
-* **Paulo Valente** assume a manutenção do projeto
-* Eu entro um tempo depois
+* Primeiro commit público em 32 de julho de 2016 por Tony Han (tony612)
+* Longo **hiatus** entre 2020 até 2022 sem grandes atualizações e/ou correções
+* **Paulo Valente** assume a manutenção do projeto em setembro de 2022
+* Eu entro 18 meses depois em março de 2024
 
 Hoje os principais mantenedores são:
   - **Paulo Valente**
@@ -447,7 +447,7 @@ end
 
 ---
 
-# Composição de streams
+# Composição
 
 ```elixir
 def pipeline(input, materializer) do
@@ -468,6 +468,10 @@ defp enrich_with_data(stream) do
   GRPC.Stream.map(stream, &fetch_metadata/1)
 end
 ```
+
+---
+
+# Controle de Fluxo
 
 ---
 
