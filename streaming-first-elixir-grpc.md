@@ -39,18 +39,35 @@ style: |
 
 ---
 
+# Quem sou eu?
+
+**Adriano Santos**
+
+- Gerente de Desenvolvimento na V3 Tecnologia
+- Contribuidor ativo em projetos open source:
+  - **elixir-grpc**,**honey-potion**, **spawn**, **horde**, ...
+  - Dentro e fora do ecossistema Elixir
+- Apaixonado por sistemas distribuídos, streaming e comunidades técnicas
+
+---
+
+# Código: Impacto, Pessoas e Responsabilidade 
+
+<img src="assets/images/hex-user.png" alt="Adriano Santos" width="92%" height="92%" />
+
+---
+
 # Agenda
 
 ### O que vamos ver hoje:
 
-| Tópico | Descrição |
-|--------|----------|
-| 📚 **Contexto** | O que é elixir-grpc |
-| 💡 **Conceito** | Por que Streaming-first? |
-| 🔧 **Fundamentos** | API GRPC.Stream em detalhes |
-| 💻 **Prática** | Exemplos reais e casos de uso |
-| 🚀 **Evolução** | Mudanças e próximos passos |
-
+| Tópico | Descrição |                               |
+|--------|-----------|-------------------------------|
+| 📚 **Contexto**    | O que é elixir-grpc           |
+| 💡 **Conceito**    | Por que Streaming-first?      |
+| 🔧 **Fundamentos** | API GRPC.Stream em detalhes   |
+| 💻 **Prática**     | Exemplos reais e casos de uso |
+| 🚀 **Evolução**    | Mudanças e próximos passos    |
 
 ---
 
@@ -72,12 +89,12 @@ style: |
 
 # Tipos de streaming no gRPC
 
-| Tipo | Descrição | Fluxo |
-|------|-----------|-------|
-| **Unary** | Request/Response único | Cliente → Servidor → Cliente |
-| **Server Streaming** | Servidor envia stream | Cliente → Servidor ⇉ Cliente |
-| **Client Streaming** | Cliente envia stream | Cliente ⇉ Servidor → Cliente |
-| **Bidirectional** | Ambos streamam | Cliente ⇄ Servidor |
+| Tipo                 | Descrição              | Fluxo                        |
+|----------------------|------------------------|------------------------------|
+| **Unary**            | Request/Response único | Cliente → Servidor → Cliente |
+| **Server Streaming** | Servidor envia stream  | Cliente → Servidor ⇉ Cliente |
+| **Client Streaming** | Cliente envia stream   | Cliente ⇉ Servidor → Cliente |
+| **Bidirectional**    | Ambos streamam         | Cliente ⇄ Servidor           |
 
 **Modelo único no elixir-grpc**
 
@@ -102,17 +119,6 @@ style: |
 
 ---
 
-# Tipos de streaming no gRPC
-
-- Unary
-- Server streaming
-- Client streaming
-- Bidirectional streaming
-
-Modelo único no elixir-grpc
-
----
-
 # O papel do GRPC.Stream
 
 - **Abstração baseada em Flow**
@@ -125,19 +131,17 @@ Modelo único no elixir-grpc
 
 # Estrutura da API
 
-**Funções de Criação:**
-- `from/2` - Converte input em Flow com backpressure
-- `unary/2` - Converte request única em Flow
-
-**Transformadores:**
-- `map/2`, `filter/2`, `flat_map/2`
-- `map_with_context/2`, `map_error/2`
-- `reduce/3`, `partition/1`
-- `uniq/1`, `uniq_by/2`
-
-**Materializadores:**
-- `run/1` - Executa stream unary
-- `run_with/3` - Executa e emite respostas
+* **Funções de Criação:**
+  - `from/2` - Converte um input stream em Flow com backpressure
+  - `unary/2` - Converte request única em Flow
+* **Operadores:**
+  - `map/2`, `filter/2`, `flat_map/2`
+  - `map_with_context/2`, `map_error/2`
+  - `reduce/3`, `partition/1`
+  - `uniq/1`, `uniq_by/2`
+* **Materializadores:**
+  - `run/1` - Executa stream unary
+  - `run_with/3` - Executa e emite respostas de um stream
 
 ---
 
@@ -155,9 +159,6 @@ end
 
 **Conceito:** Unary é apenas um stream de 1 elemento
 
-<!-- notes -->
-materializer: GRPC.Server.Stream que representa o contexto da requisição
-
 ---
 
 # Server-side streaming
@@ -173,7 +174,7 @@ def stream_numbers(request, materializer) do
 end
 ```
 
-**Servidor envia múltiplas mensagens, cliente recebe**
+**Cliente envia uma mensagem, Servidor envia múltiplas mensagens**
 
 ---
 
@@ -201,16 +202,11 @@ end
 
 ```elixir
 def route_chat(input, materializer) do
-  # Stream independente do servidor (pode ser RabbitMQ, Kafka, etc)
   {:ok, server_producer} = MyApp.EventProducer.start_link([])
   
   # Combina input do cliente + eventos independentes do servidor
-  GRPC.Stream.from(input, 
-    join_with: server_producer,
-    max_demand: 10
-  )
+  GRPC.Stream.from(input, join_with: server_producer)
   |> GRPC.Stream.map(fn
-    # Mensagens do cliente
     %RouteNote{} = note -> 
       %RouteNote{message: "Echo: #{note.message}"}
     
@@ -226,7 +222,7 @@ end
 
 ---
 
-# Transformadores: map, filter, flat_map
+# Operadores: map, filter, flat_map
 
 ```elixir
 def process_events(input, materializer) do
@@ -264,7 +260,7 @@ end
 
 ---
 
-# map_error: Transformando exceções em erros gRPC
+# map_error: Lidando com erros durante o fluxo
 
 ```elixir
 def safe_processing(input, materializer) do
@@ -274,10 +270,7 @@ def safe_processing(input, materializer) do
     if data.value < 0, do: raise("Negative value!")
     
     # Processamento pode falhar
-    case process(data) do
-      {:ok, result} -> result
-      {:error, reason} -> {:error, reason}
-    end
+    process(data)
   end)
   |> GRPC.Stream.map_error(fn
     # Captura exceções
@@ -287,16 +280,10 @@ def safe_processing(input, materializer) do
         message: "Validation failed: #{msg}"
       )
     
-    # Captura erros explícitos
-    {:error, :not_found} ->
-      GRPC.RPCError.exception(status: :not_found)
-    
     # Qualquer outro erro
-    {:error, reason} ->
-      GRPC.RPCError.exception(
-        status: :internal,
-        message: "Processing error: #{inspect(reason)}"
-      )
+    {:error, reason} ->  GRPC.RPCError.exception(status: :internal, message: "Processing error: #{inspect(reason)}")
+
+    item -> item 
   end)
   |> GRPC.Stream.run_with(materializer)
 end
@@ -306,6 +293,8 @@ end
 
 # Estratégias de tratamento de erros
 
+---
+
 **1. Fail-fast - Para o stream no primeiro erro:**
 ```elixir
 # Sem map_error - primeira exceção interrompe tudo
@@ -314,16 +303,20 @@ GRPC.Stream.from(input)
 |> GRPC.Stream.run_with(materializer)
 ```
 
+---
+
 **2. Transformar erros em respostas válidas:**
 ```elixir
 # Continua processando mesmo com erros
 GRPC.Stream.from(input)
 |> GRPC.Stream.map(&may_fail/1)
-|> GRPC.Stream.map_error(fn {:error, _} ->
-  %Response{status: "error", data: nil}
+|> GRPC.Stream.map_error(
+  fn {:error, _} -> %Response{status: "error", data: nil}
+  item -> item
 end)
 |> GRPC.Stream.run_with(materializer)
 ```
+---
 
 **3. Retry com fallback:**
 ```elixir
@@ -344,7 +337,7 @@ end)
 
 ```elixir
 def stream_with_effects(input, materializer) do
-  # Pode ser um GenServer, Agent, ou qualquer processo
+  # Pode ser um GenServer, Agent, ou qualquer processo ou função
   {:ok, metrics_collector} = MetricsCollector.start_link()
   {:ok, notifier} = EventNotifier.start_link()
   
@@ -364,8 +357,6 @@ def stream_with_effects(input, materializer) do
   |> GRPC.Stream.run_with(materializer)
 end
 ```
-
-**Aplica side-effects sem alterar valores: logging, métricas, notificações**
 
 ---
 
@@ -398,8 +389,6 @@ def monitored_stream(input, materializer) do
   |> GRPC.Stream.run_with(materializer)
 end
 ```
-
-**effect/2 é lazy - só executa quando o stream é materializado**
 
 ---
 
@@ -487,7 +476,35 @@ end
 
 ---
 
-# ask: Comunicação com GenServer
+# ask: Comunicação síncrona com Processos
+
+```elixir
+def enrich_with_prices(input, materializer) do
+  # isto provavelmente estaria em outro lugar
+  {:ok, pricing_pid} = PricingService.start_link([])
+
+  GRPC.Stream.from(input)
+  # Consulta o GenServer para cada produto
+  |> GRPC.Stream.ask(pricing_pid, timeout: 5000)
+  |> GRPC.Stream.map(fn
+    # Sucesso: enriquece o produto com preço
+    {:response, price} -> %ProductReply{price: price, status: :available}
+    
+    # Timeout: serviço não respondeu
+    {:error, :timeout} -> %ProductReply{price: 0.0, status: :unavailable}
+    
+    # Processo morreu
+    {:error, :process_not_alive} -> %ProductReply{price: 0.0, status: :error}
+  end)
+  |> GRPC.Stream.run_with(materializer)
+end
+```
+
+**ask/3 mantém o fluxo enquanto consulta serviços externos**
+
+---
+
+# ask: Integrando um Processo com o stream
 
 ```elixir
 defmodule PricingService do
@@ -510,63 +527,6 @@ defmodule PricingService do
   defp calculate_price(id), do: :rand.uniform(100) * 1.0
 end
 ```
-
-**GenServer que responde requisições no formato esperado pelo ask/3**
-
----
-
-# ask: Integrando com o stream
-
-```elixir
-def enrich_with_prices(input, materializer) do
-  # isto provavelmente estaria em outro lugar
-  {:ok, pricing_pid} = PricingService.start_link([])
-  
-  GRPC.Stream.from(input)
-  # Consulta o GenServer para cada produto
-  |> GRPC.Stream.ask(pricing_pid, timeout: 5000)
-  |> GRPC.Stream.map(fn
-    # Sucesso: enriquece o produto com preço
-    {:response, price} ->
-      %ProductReply{price: price, status: :available}
-    
-    # Timeout: serviço não respondeu
-    {:error, :timeout} ->
-      %ProductReply{price: 0.0, status: :unavailable}
-    
-    # Processo morreu
-    {:error, :process_not_alive} ->
-      %ProductReply{price: 0.0, status: :error}
-  end)
-  |> GRPC.Stream.run_with(materializer)
-end
-```
-
-**ask/3 mantém o fluxo enquanto consulta serviços externos**
-
----
-
-# ask vs ask!: Quando usar cada um
-
-**ask/3 - Retorna {:error, reason}:**
-```elixir
-GRPC.Stream.ask(stream, service_pid, timeout: 5000)
-|> GRPC.Stream.map(fn
-  {:response, data} -> process(data)
-  {:error, :timeout} -> fallback_value()
-  {:error, :process_not_alive} -> default_value()
-end)
-```
-✅ **Recomendado:** Permite tratamento de erro gracioso
-
-**ask!/3 - Levanta exceção:**
-```elixir
-GRPC.Stream.ask!(stream, service_pid, timeout: 5000)
-|> GRPC.Stream.map(fn {:response, data} -> 
-  process(data)  # Se falhar, CRASH no worker!
-end)
-```
-⚠️ **Cuidado:** Pode parar todo o stream. Deve ser usado em conjunto com `map_error`.
 
 ---
 
@@ -594,145 +554,6 @@ def enrich_product_stream(input, materializer) do
 end
 ```
 
-**Composição de múltiplas consultas assíncronas**
-
----
-
-# Exemplo completo: Chat bidirecional
-
-```elixir
-defmodule ChatService do
-  use GRPC.Server, service: Chat.Service
-
-  def route_chat(input, materializer) do
-    # Stream de entrada com backpressure
-    GRPC.Stream.from(input, max_demand: 10)
-    # Log de mensagens recebidas
-    |> GRPC.Stream.effect(fn msg ->
-      Logger.info("Received: #{inspect(msg)}")
-    end)
-    # Validação
-    |> GRPC.Stream.filter(&valid_message?/1)
-    # Processamento
-    |> GRPC.Stream.map(&process_chat_message/1)
-    # Tratamento de erros
-    |> GRPC.Stream.map_error(&handle_chat_error/1)
-    # Envia respostas
-    |> GRPC.Stream.run_with(materializer)
-  end
-end
-```
-
----
-
-# Exemplo: Stream com Cache
-
-```elixir
-def cached_lookup(input, materializer) do
-  GRPC.Stream.from(input)
-  |> GRPC.Stream.map(fn %LookupRequest{key: key} ->
-    case Cache.get(key) do
-      {:ok, value} -> 
-        %LookupReply{value: value, from_cache: true}
-      :miss ->
-        value = Database.fetch(key)
-        Cache.put(key, value)
-        %LookupReply{value: value, from_cache: false}
-    end
-  end)
-  |> GRPC.Stream.run_with(materializer)
-end
-```
-
----
-
-# Exemplo: Fan-out com múltiplos consumidores
-
-```elixir
-def broadcast_events(input, materializer) do
-  GRPC.Stream.from(input)
-  |> GRPC.Stream.flat_map(fn event ->
-    # Cada evento gera múltiplas notificações
-    subscribers = Subscribers.list(event.topic)
-    
-    Enum.map(subscribers, fn sub ->
-      %Notification{
-        subscriber_id: sub.id,
-        event: event
-      }
-    end)
-  end)
-  |> GRPC.Stream.run_with(materializer)
-end
-```
-
----
-
-# Opções avançadas do from/2
-
-```elixir
-GRPC.Stream.from(input,
-  # Backpressure
-  max_demand: 50,
-  
-  # Producer externo
-  join_with: external_producer_pid,
-  
-  # Dispatcher customizado
-  dispatcher: GenStage.DemandDispatcher,
-  
-  # Propagar contexto para o Flow
-  propagate_context: true,
-  
-  # Contexto do servidor
-  materializer: materializer
-)
-```
-
----
-
-# Por que isso importa?
-
-**Modelo mental unificado:**
-- Unary, Server, Client e Bidirectional são todos streams
-- Mesma API para todos os casos
-- Composição funcional natural
-
-**Poder do BEAM:**
-- Backpressure automático via GenStage
-- Processos isolados para cada stream
-- Escalabilidade horizontal
-
-**Código idiomático:**
-- Pipeline operators (`|>`)
-- Pattern matching
-- Sem callbacks aninhados
-
----
-
-# Quando usar streaming?
-
-**Casos de uso ideais:**
-- **Eventos em tempo real** - notificações, logs, telemetria
-- **Processamento de grandes volumes** - ETL, agregações
-- **Sistemas reativos** - dashboards, monitoramento
-- **Integração com message queues** - Kafka, RabbitMQ
-- **Upload/Download de arquivos** - chunked transfer
-
-**Quando evitar:**
-- Operações simples request/response (use unary)
-- Dados pequenos que cabem em uma mensagem
-
----
-
-# Vantagens da abordagem Streaming-first
-
-1. **Consistência**: Uma API para todos os tipos de RPC
-2. **Composabilidade**: Combinar streams facilmente
-3. **Testabilidade**: Streams são mais fáceis de testar
-4. **Performance**: Backpressure evita sobrecarga
-5. **Integração**: Compatível com Flow, GenStage, Broadway
-
 ---
 
 # Comparação: Antes vs Agora
@@ -741,7 +562,7 @@ GRPC.Stream.from(input,
 
 # Antes (imperativo)
 ```elixir
-def chat(stream) do
+def chat(stream, _mat) do
   receive_loop(stream, [])
 end
 
@@ -765,59 +586,13 @@ def chat(input, materializer) do
   |> GRPC.Stream.run_with(materializer)
 end
 ```
+---
+
+# Testes
 
 ---
 
-# Recursos da API GRPC.Stream
-
-**Funções de Criação:**
-- `from/2` - Stream com múltiplos elementos
-- `unary/2` - Stream de elemento único
-
-**Materializadores:**
-- `run/1` - Para unary streams
-- `run_with/3` - Para streaming responses
-
-**Transformadores:**
-- `map/2`, `filter/2`, `flat_map/2`, `reduce/3`
-- `map_with_context/2`, `map_error/2`
-- `uniq/1`, `uniq_by/2`, `partition/1`
-
-**Actions:**
-- `effect/2` - Side-effects sem alterar valores
-- `ask/3`, `ask!/3` - Comunicação com processos
-- `get_headers/1` - Acesso a headers HTTP/2
-
----
-
-# Debugging e observabilidade
-
-```elixir
-def observable_stream(input, materializer) do
-  GRPC.Stream.from(input)
-  |> GRPC.Stream.effect(fn msg ->
-    :telemetry.execute([:grpc, :message, :received], %{}, %{msg: msg})
-  end)
-  |> GRPC.Stream.map(fn msg ->
-    start_time = System.monotonic_time()
-    result = process(msg)
-    duration = System.monotonic_time() - start_time
-    
-    :telemetry.execute(
-      [:grpc, :processing, :complete],
-      %{duration: duration},
-      %{}
-    )
-    
-    result
-  end)
-  |> GRPC.Stream.run_with(materializer)
-end
-```
-
----
-
-# Testing streams
+# Testando a pipeline
 
 ```elixir
 defmodule ChatServiceTest do
@@ -845,26 +620,107 @@ end
 
 ---
 
-# Padrões comuns
+# Testando componentes externos
 
-**1. Validação + Transformação + Persistência:**
 ```elixir
-input
-|> GRPC.Stream.from()
-|> GRPC.Stream.filter(&valid?/1)
-|> GRPC.Stream.map(&transform/1)
-|> GRPC.Stream.effect(&persist/1)
-|> GRPC.Stream.run_with(materializer)
+describe "ask/3 with pid" do
+  test "calls a pid and returns the response" do
+    pid =
+      spawn(fn ->
+        receive do
+          {:request, :hello, test_pid} ->
+            send(test_pid, {:response, :world})
+        end
+      end)
+
+    result =
+      GRPC.Stream.from([:hello])
+      |> GRPC.Stream.ask(pid)
+      |> GRPC.Stream.to_flow()
+      |> Enum.to_list()
+
+    assert result == [:world]
+  end
+end
 ```
 
-**2. Fan-out paralelo:**
+---
+
+# Testes com adaptadores
+
+---
+
+# 1. Defina um adaptador fake
+
 ```elixir
-input
-|> GRPC.Stream.from()
-|> GRPC.Stream.partition(stages: 4)
-|> GRPC.Stream.map(&expensive_operation/1)
-|> GRPC.Stream.run_with(materializer)
+defmodule FakeAdapter do
+  def get_headers(_), do: %{"content-type" => "application/grpc"}
+
+  def send_reply(%{test_pid: test_pid, ref: ref}, item, _opts) do
+    send(test_pid, {:send_reply, ref, item})
+  end
+
+  def send_trailers(%{test_pid: test_pid, ref: ref}, trailers) do
+    send(test_pid, {:send_trailers, ref, trailers})
+  end
+end
 ```
+
+---
+
+# 2. Implemente o teste
+
+```elixir
+test "unary/2 creates a flow from a unary input" do
+  test_pid = self()
+  ref = make_ref()
+
+  input = %Routeguide.Point{latitude: 1, longitude: 2}
+
+  materializer = %GRPC.Server.Stream{
+    adapter: FakeAdapter,
+    payload: %{test_pid: test_pid, ref: ref},
+    grpc_type: :unary
+  }
+
+  assert :noreply =
+            GRPC.Stream.unary(input, materializer: materializer)
+            |> GRPC.Stream.map(fn item ->
+              item
+            end)
+            |> GRPC.Stream.run()
+
+  assert_receive {:send_reply, ^ref, response}
+  assert IO.iodata_to_binary(response) == Protobuf.encode(input)
+end
+```
+
+---
+
+# Por que Stream?
+
+**Modelo mental unificado:**
+- Unary, Server, Client e Bidirectional são todos streams
+- Mesma API para todos os casos
+- Composição funcional natural
+
+**Poder do BEAM:**
+- Backpressure via Flow/GenStage
+- Fácil integração entre processos externos e o fluxo gRPC
+
+**Código idiomático:**
+- Pipeline operators (`|>`)
+- Fácil entendimento das regras de negócio
+
+---
+
+# Vantagens da abordagem Streaming-first
+
+1. **Consistência**: Uma API para todos os tipos de RPC
+2. **Composabilidade**: Combinar streams facilmente
+3. **Testabilidade**: Streams são mais fáceis de testar
+4. **Performance**: Backpressure evita sobrecarga
+5. **Integração**: Compatível com Flow, GenStage, Broadway, Process
 
 ---
 
@@ -900,11 +756,7 @@ input
 
 **Futuro:**
 - Mais operadores convenientes
-- Melhor integração com Broadway
 - Otimizações de performance
-- Compatibilidade com HTTP/3 (QUIC)
-
-**Garantia:** Evolução sem quebrar o modelo streaming-first
 
 ---
 
@@ -924,22 +776,7 @@ input
 
 ---
 
-# Conclusão
-
-**Streaming-first não é apenas um nome:**
-- ✅ API unificada para todos tipos de RPC
-- ✅ Composição funcional natural
-- ✅ Backpressure automático
-- ✅ Integração com ecossistema Elixir
-- ✅ Código declarativo e testável
-
-**Mensagem principal:**
-> Todo RPC é um stream. Unary é apenas um stream de 1 elemento.
-
-**Resultado:**
-- Código mais limpo e idiomático
-- Melhor uso do BEAM
-- Escalabilidade natural
+# Demo
 
 ---
 

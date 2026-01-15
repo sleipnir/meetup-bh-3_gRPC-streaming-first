@@ -20,7 +20,7 @@ defmodule DeliverySystem.Producers.SystemMessageProducer do
 
   def handle_call({:client_message, msg}, _from, state) do
     # Respond to client message
-    response = resposta_automatica(msg.message)
+    response = automatic_reply(msg.message)
 
     # Schedule proactive messages
     Process.send_after(self(), {:proactive, msg.order_id}, 100)
@@ -39,7 +39,7 @@ defmodule DeliverySystem.Producers.SystemMessageProducer do
     {:noreply, messages, state}
   end
 
-  defp resposta_automatica(message) do
+  defp automatic_reply(message) do
     cond do
       String.contains?(String.downcase(message), "onde") ->
         "Seu pedido está a caminho!"

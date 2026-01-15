@@ -6,13 +6,13 @@ package delivery;
 service OrderService {
   // Unary: Cliente faz um pedido
   rpc CreateOrder(OrderRequest) returns (OrderResponse);
-  
+
   // Server Streaming: Cliente acompanha status do pedido em tempo real
   rpc TrackOrder(TrackRequest) returns (stream OrderStatus);
-  
+
   // Client Streaming: Restaurante envia items do pedido um por um
   rpc PrepareOrder(stream OrderItem) returns (PreparationSummary);
-  
+
   // Bidirectional: Chat entre cliente e entregador
   rpc OrderChat(stream ChatMessage) returns (stream ChatMessage);
 }
@@ -21,10 +21,10 @@ service OrderService {
 service DeliveryService {
   // Server Streaming: Motorista recebe novos pedidos disponíveis
   rpc StreamAvailableOrders(DriverRequest) returns (stream DeliveryOrder);
-  
+
   // Unary: Motorista aceita um pedido
   rpc AcceptOrder(AcceptRequest) returns (AcceptResponse);
-  
+
   // Client Streaming: Motorista envia atualizações de localização
   rpc UpdateLocation(stream LocationUpdate) returns (LocationSummary);
 }
@@ -49,7 +49,7 @@ message TrackRequest {
 
 message OrderStatus {
   string order_id = 1;
-  string status = 2;  // created, preparing, ready, picked_up, delivered
+  string status = 2; // created, preparing, ready, picked_up, delivered
   string message = 3;
   int64 timestamp = 4;
   optional Location current_location = 5;
@@ -110,7 +110,7 @@ message LocationSummary {
 // Mensagens de Chat
 message ChatMessage {
   string order_id = 1;
-  string sender = 2;  // customer ou driver
+  string sender = 2; // customer ou driver
   string message = 3;
   int64 timestamp = 4;
 }
