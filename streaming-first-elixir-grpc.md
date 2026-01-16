@@ -99,7 +99,7 @@ https://github.com/sleipnir/meetup-bh-3_gRPC-streaming-first
 | **Unary**            | Request/Response único | Cliente → Servidor → Cliente |
 | **Server Streaming** | Servidor envia stream  | Cliente → Servidor ⇉ Cliente |
 | **Client Streaming** | Cliente envia stream   | Cliente ⇉ Servidor → Cliente |
-| **Bidirectional**    | Ambos streamam         | Cliente ⇄ Servidor           |
+| **Bidirectional**    | Ambos stream           | Cliente ⇄ Servidor           |
 
 ---
 
@@ -143,7 +143,7 @@ service OrderService {
 
 ---
 
-* Primeiro commit público em 32 de julho de 2016 por Tony Han (tony612)
+* Primeiro commit público em 3 de julho de 2016 por Tony Han (tony612)
 * Longo **hiatus** entre 2020 até 2022 sem grandes atualizações e/ou correções
 * **Paulo Valente** assume a manutenção do projeto em setembro de 2022
 * Eu entro 18 meses depois em março de 2024
